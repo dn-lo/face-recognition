@@ -1,4 +1,5 @@
 """Tests for verifying the development environment and basic ML functionality."""
+
 import numpy as np
 import pytorch_lightning as pl
 import torch
@@ -18,11 +19,9 @@ class FullyConnectedNet(pl.LightningModule):
         image_flatten_size = image_size * image_size
 
         self.flatten = nn.Flatten()
-        self.linear1 = nn.Linear(
-            in_features=image_flatten_size, out_features=linear_channels)
+        self.linear1 = nn.Linear(in_features=image_flatten_size, out_features=linear_channels)
         self.relu = nn.ReLU()
-        self.linear2 = nn.Linear(
-            in_features=linear_channels, out_features=number_classes)
+        self.linear2 = nn.Linear(in_features=linear_channels, out_features=number_classes)
         self.log_softmax = nn.LogSoftmax(dim=1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -72,8 +71,7 @@ def test_pytorch_lightning() -> None:
         [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
     )
 
-    train_dataset = datasets.MNIST(
-        "data", train=True, download=True, transform=transform)
+    train_dataset = datasets.MNIST("data", train=True, download=True, transform=transform)
     val_dataset = datasets.MNIST("data", train=False, transform=transform)
 
     train_loader = DataLoader(train_dataset, batch_size=64)
@@ -84,10 +82,8 @@ def test_pytorch_lightning() -> None:
     number_classes = len(train_dataset.classes)
 
     # Initialize model and trainer
-    model = FullyConnectedNet(image_size=image_size,
-                              number_classes=number_classes)
-    trainer = pl.Trainer(
-        max_epochs=2, enable_checkpointing=False, logger=False, accelerator="auto")
+    model = FullyConnectedNet(image_size=image_size, number_classes=number_classes)
+    trainer = pl.Trainer(max_epochs=2, enable_checkpointing=False, logger=False, accelerator="auto")
 
     # Train model
     trainer.fit(model, train_loader, val_loader)
