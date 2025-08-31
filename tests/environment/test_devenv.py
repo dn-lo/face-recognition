@@ -1,14 +1,18 @@
+"""Tests for verifying the development environment and basic ML functionality."""
 import numpy as np
 import pytorch_lightning as pl
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
+from torch import nn
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 
 
 class FullyConnectedNet(pl.LightningModule):
+    """A simple fully connected neural network for image classification."""
+
     def __init__(self, image_size: int, number_classes: int) -> None:
+        """Initialize the neural network."""
         super().__init__()
         linear_channels = 128
         image_flatten_size = image_size * image_size
@@ -22,6 +26,7 @@ class FullyConnectedNet(pl.LightningModule):
         self.log_softmax = nn.LogSoftmax(dim=1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Forward pass of the neural network."""
         x = self.flatten(x)
         x = self.linear1(x)
         x = self.relu(x)
@@ -29,7 +34,8 @@ class FullyConnectedNet(pl.LightningModule):
         x = self.log_softmax(x)
         return x
 
-    def step(self, batch: tuple, batch_idx: int, stage: str = "train"):
+    def step(self, batch: tuple, batch_idx: int, stage: str = "train") -> torch.Tensor:
+        """Perform a step for training or validation."""
         x, y = batch
         logits = self(x)
         loss = F.nll_loss(logits, y)
@@ -40,23 +46,26 @@ class FullyConnectedNet(pl.LightningModule):
         self.log(f"{stage}_acc", acc, prog_bar=True)
         return loss
 
-    def training_step(self, batch: tuple, batch_idx: int):
+    def training_step(self, batch: tuple, batch_idx: int) -> torch.Tensor:
+        """Perform a training step."""
         return self.step(batch, batch_idx, "train")
 
-    def validation_step(self, batch: tuple, batch_idx: int):
+    def validation_step(self, batch: tuple, batch_idx: int) -> torch.Tensor:
+        """Perform a validation step."""
         return self.step(batch, batch_idx, "val")
 
-    def configure_optimizers(self):
+    def configure_optimizers(self) -> torch.optim.Optimizer:
+        """Configure the optimizer."""
         return torch.optim.Adam(self.parameters(), lr=0.02)
 
 
-def test_numpy():
+def test_numpy() -> None:
     """Test to ensure numpy is working correctly."""
     arr = np.array([1, 2, 3])
     assert arr.sum() == 6
 
 
-def test_pytorch_lightning():
+def test_pytorch_lightning() -> None:
     """Test MNIST classification with PyTorch Lightning."""
     # MNIST dataset setup
     transform = transforms.Compose(
