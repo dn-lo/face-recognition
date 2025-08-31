@@ -1,7 +1,8 @@
 # Face Recognition
+
 Deep learning models for face detection and recognition.
 
-# Requirements
+## Requirements
 
 This repository is designed for developers with limited computational resources. We will focus on state-of-the-art models that comply with the following requirements:
 
