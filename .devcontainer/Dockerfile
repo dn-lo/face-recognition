@@ -16,7 +16,7 @@ RUN apt-get update && apt-get install -y \
 USER vscode
 
 # Set working directory
-WORKDIR /workspaces/face-recognitions
+WORKDIR /workspaces/face-recognition
 
 # Create virtual environment (will be populated by setup.py)
 RUN python -m venv .venv
