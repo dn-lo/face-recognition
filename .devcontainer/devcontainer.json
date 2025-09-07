@@ -1,0 +1,63 @@
+{
+	"name": "face-recognition",
+	"dockerFile": "Dockerfile",
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-python.python",
+				"ms-python.vscode-pylance",
+				"ms-toolsai.jupyter",
+				"charliermarsh.ruff",
+				"ms-azuretools.vscode-docker",
+				"DavidAnson.vscode-markdownlint",
+				"eamodio.gitlens",
+				"GitHub.copilot",
+				"GitHub.copilot-chat",
+				"GitHub.vscode-pull-request-github",
+				"christian-kohler.path-intellisense",
+				"streetsidesoftware.code-spell-checker",
+				"tamasfe.even-better-toml"
+			],
+			"settings": {
+				"editor.formatOnSave": true,
+				"editor.codeActionsOnSave": {
+					"source.fixAll": "explicit",
+					"source.organizeImports": "explicit"
+				},
+				"[python]": {
+					"editor.defaultFormatter": "charliermarsh.ruff"
+				},
+				"ruff.enable": true,
+				"extensions.verifySignature": false,
+				"files.trimFinalNewlines": true,
+				"files.insertFinalNewline": true,
+				"files.trimTrailingWhitespace": true,
+				"editor.renderWhitespace": "trailing",
+				"http.proxyStrictSSL": false,
+				"python.testing.pytestEnabled": true,
+				"telemetry.enableTelemetry": false,
+				"telemetry.telemetryLevel": "off",
+				"terminal.integrated.scrollback": 100000,
+				"cSpell.language": "en",
+				"cSpell.diagnosticLevel": "Hint",
+				"cSpell.logLevel": "Information",
+				"editor.rulers": [
+					100
+				],
+				"search.exclude": {
+					".venv": true
+				},
+				"files.exclude": {
+					".venv": true
+				}
+			}
+		},
+		"postCreateCommand": "python setup.py",
+		"remoteUser": "vscode",
+		"features": {
+			"ghcr.io/devcontainers/features/python:1": {
+				"version": "3.10"
+			}
+		}
+	}
+}

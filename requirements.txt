@@ -1,0 +1,11 @@
+torch
+torchvision
+numpy
+pillow
+opencv-python
+matplotlib
+scipy
+pytorch-lightning
+pandas
+pytest
+ruff
