@@ -39,11 +39,7 @@ This repository includes a **Dev Container** configuration to simplify environme
    ```
 
 4. **Reopen in Dev Container**:
-   - GUI method: Press `F1` → type `Dev Containers: Reopen in Container`
-   - **Alternative (Command Line)**: Run the following from the repo root:
-     ```bash
-     devcontainer reopen
-     ```
+   - GUI method: Press `F1` → type `Dev Containers: Reopen in Container
    - VS Code will automatically build the container using the `.devcontainer/Dockerfile` and `.devcontainer/devcontainer.json`.
 
 5. **Wait for the container to build**:
