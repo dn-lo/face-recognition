@@ -23,7 +23,8 @@ from utils.load_model import load_model
 from utils.py_cpu_nms import py_cpu_nms
 
 
-# TODO: clean up, make functions reusable with size not by default and move to utils
+# TODO: crop and downsample it's not needed, you should just ensure the image is not too large to
+# exceed memory limits and keep aspect ratio.
 def load_image(
     image_path: str,
     target_size: tuple[int, int] = (1024, 624),
