@@ -8,6 +8,7 @@ a visualization of detected faces.
 
 import argparse
 import time
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -22,13 +23,17 @@ from utils.load_model import load_model
 from utils.py_cpu_nms import py_cpu_nms
 
 
+# TODO: clean up, make functions reusable with size not by default and move to utils
 def load_image(
-    image_path: str, bgr_mean: tuple[int, int, int] | None = None
+    image_path: str,
+    target_size: tuple[int, int] = (1024, 624),
+    bgr_mean: tuple[int, int, int] | None = None,
 ) -> tuple[torch.Tensor, np.ndarray]:
-    """Load and preprocess an image.
+    """Load and preprocess an image with symmetric cropping and downsampling.
 
     Args:
         image_path: Path to the input image.
+        target_size: Desired output size as (width, height). Defaults to (1024, 624).
         bgr_mean: Mean values for BGR channels for normalization. Defaults to None.
 
     Returns:
@@ -36,13 +41,44 @@ def load_image(
         np.ndarray: Original image read from the path.
     """
     img_raw = cv2.imread(image_path, cv2.IMREAD_COLOR)
-    img = np.float32(img_raw)
 
+    # Get original and target dimensions
+    orig_h, orig_w = img_raw.shape[:2]
+    target_w, target_h = target_size
+
+    # Calculate aspect ratios
+    orig_aspect = orig_w / orig_h
+    target_aspect = target_w / target_h
+
+    # Determine crop dimensions to match target aspect ratio
+    if orig_aspect > target_aspect:
+        # Image is too wide, crop width
+        new_w = int(orig_h * target_aspect)
+        new_h = orig_h
+        crop_x = (orig_w - new_w) // 2
+        crop_y = 0
+    else:
+        # Image is too tall, crop height
+        new_w = orig_w
+        new_h = int(orig_w / target_aspect)
+        crop_x = 0
+        crop_y = (orig_h - new_h) // 2
+
+    # Symmetric crop
+    img_cropped = img_raw[crop_y : crop_y + new_h, crop_x : crop_x + new_w]
+
+    # Downsample using INTER_AREA (best for downsampling, avoids aliasing)
+    img_resized = cv2.resize(img_cropped, target_size, interpolation=cv2.INTER_AREA)
+
+    # Convert to float and normalize
+    img = np.float32(img_resized)
     if bgr_mean is not None:
         img -= bgr_mean
+
     img = img.transpose(2, 0, 1)
     img = torch.from_numpy(img).unsqueeze(0)
-    return img, img_raw
+
+    return img, img_resized
 
 
 if __name__ == "__main__":
@@ -88,7 +124,7 @@ if __name__ == "__main__":
 
     # testing begin
     for _ in range(1):
-        image_path = "/workspaces/face-recognition/data/IMG_3504.jpg"
+        image_path = "/workspaces/face-recognition/data/PXL_20251018_113408119.jpg"
         bgr_mean_imagenet = (104, 117, 123)  # Mean BGR values in ImageNet, used for training
         img, img_raw = load_image(image_path, bgr_mean=bgr_mean_imagenet)
         img = img.to(device)
@@ -156,5 +192,5 @@ if __name__ == "__main__":
                 cv2.circle(img_raw, (lmark[6], lmark[7]), 1, (0, 255, 0), 4)
                 cv2.circle(img_raw, (lmark[8], lmark[9]), 1, (255, 0, 0), 4)
 
-            name = "test.jpg"
+            name = Path(image_path).name
             cv2.imwrite(name, img_raw)
