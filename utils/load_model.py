@@ -24,7 +24,7 @@ def load_model(model: nn.Module, checkpoint_path: Path, device: torch.device) ->
     Returns:
         nn.Module: The model with loaded parameters.
     """
-    print(f"Loading pretrained model from {checkpoint_path}")
+    print(f"Loading pretrained model from {checkpoint_path}...")
     checkpoint = torch.load(checkpoint_path, map_location=device)
 
     # Handle nested state dicts
@@ -36,4 +36,5 @@ def load_model(model: nn.Module, checkpoint_path: Path, device: torch.device) ->
         print(f"⚠️ Missing keys: {len(missing)}, Unexpected keys: {len(unexpected)}")
 
     model.to(device)
+    print("Finished loading model!")
     return model
