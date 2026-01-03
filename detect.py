@@ -1,9 +1,8 @@
-"""Face lmark script.
+"""Face detection script.
 
-This module implements a command-line interface to run face lmark using a selected backbone.
+This module implements a command-line interface to run face detection using a selected backbone.
 It loads a trained model checkpoint, prepares input images, runs inference, decodes bounding boxes
-and landmarks, applies non-maximum suppression (NMS), and saves
-a visualization of detected faces.
+and landmarks, applies non-maximum suppression (NMS), and saves sa visualization of detected faces.
 """
 
 import argparse
@@ -33,6 +32,9 @@ if __name__ == "__main__":
         help="Trained state_dict file path to open",
     )
     parser.add_argument(
+        "-i", "--image_path", default="./data/tpab.png", type=str, help="Input image path"
+    )
+    parser.add_argument(
         "--network", default="resnet50", help="Backbone network mobile0.25 or resnet50"
     )
     parser.add_argument("--cpu", action="store_false", default=True, help="Use cpu inference")
@@ -42,9 +44,6 @@ if __name__ == "__main__":
     parser.add_argument("--top_k", default=5000, type=int, help="Kept top K boxes before NMS")
     parser.add_argument("--nms_threshold", default=0.4, type=float, help="nms_threshold")
     parser.add_argument("--keep_top_k", default=750, type=int, help="Kept top K boxes after NMS")
-    parser.add_argument(
-        "-s", "--save_image", action="store_true", default=True, help="show lmark results"
-    )
     parser.add_argument("--view_threshold", default=0.6, type=float, help="visualization threshold")
     args = parser.parse_args()
 
@@ -60,9 +59,8 @@ if __name__ == "__main__":
     cudnn.benchmark = True
     net = net.to(device)
 
-    image_path = "/workspaces/face-recognition/data/tpab.png"
     bgr_mean_imagenet = (104, 117, 123)  # Mean BGR values in ImageNet, used for training
-    img, img_raw, downscale = load_image(image_path, bgr_mean=bgr_mean_imagenet, max_size_mp=4)
+    img, img_raw, downscale = load_image(args.image_path, bgr_mean=bgr_mean_imagenet, max_size_mp=4)
     img = img.to(device)
 
     image_size = img.shape[-2:]
@@ -96,18 +94,20 @@ if __name__ == "__main__":
     landmarks = landmarks[keep]
 
     # show image with detections
-    if args.save_image:
-        for box, score, landmark in zip(boxes, scores, landmarks, strict=False):
-            if score < args.view_threshold:
-                continue
+    for box, score, landmark in zip(boxes, scores, landmarks, strict=False):
+        if score < args.view_threshold:
+            continue
 
-            draw_box(img_raw, box, color=Color.RED)
-            cx = int(box[0])
-            cy = int(box[1] + 12)
-            text = f"{score:.4f}"
-            cv2.putText(img_raw, text, (cx, cy), cv2.FONT_HERSHEY_DUPLEX, 0.5, Color.WHITE.value)
+        draw_box(img_raw, box, color=Color.RED)
+        cx = int(box[0])
+        cy = int(box[1] + 12)
+        text = f"{score:.4f}"
+        cv2.putText(img_raw, text, (cx, cy), cv2.FONT_HERSHEY_DUPLEX, 0.5, Color.WHITE.value)
 
-            draw_landmarks(img_raw, landmark)
+        draw_landmarks(img_raw, landmark)
 
-        name = Path(image_path).name
-        cv2.imwrite(name, img_raw)
+    output_file = Path.cwd() / "outputs" / Path(args.image_path).name.replace(".", "_detected.")
+    if not output_file.parent.exists():
+        output_file.parent.mkdir(parents=True)
+    cv2.imwrite(output_file, img_raw)
+    print(f"Output saved to {output_file}")
