@@ -24,6 +24,7 @@ from utils.py_cpu_nms import py_cpu_nms
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
 
+    # TODO: support downloading weights from URL
     parser.add_argument(
         "-m",
         "--trained_model",
@@ -31,6 +32,7 @@ if __name__ == "__main__":
         type=str,
         help="Trained state_dict file path to open",
     )
+    # TODO: support downloading image from URL
     parser.add_argument(
         "-i", "--image_path", default="./data/tpab.png", type=str, help="Input image path"
     )
