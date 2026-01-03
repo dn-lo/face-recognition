@@ -19,7 +19,7 @@ from models.retinaface.config import CONFIG_MOBILE_NET, CONFIG_RESNET_50
 from models.retinaface.decoder import Decoder
 from models.retinaface.retinaface import RetinaFace
 from utils.image import Color, draw_box, draw_landmarks, load_image
-from utils.load_model import load_model
+from utils.model import load_model
 from utils.py_cpu_nms import py_cpu_nms
 
 if __name__ == "__main__":

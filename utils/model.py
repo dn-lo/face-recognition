@@ -1,4 +1,4 @@
-"""Load torch.nn.Module parameters from checkpoint."""
+"""Model utilities."""
 
 from pathlib import Path
 from typing import Any
