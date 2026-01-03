@@ -7,6 +7,7 @@ and landmarks, applies non-maximum suppression (NMS), and saves sa visualization
 
 import argparse
 import time
+from enum import Enum
 from pathlib import Path
 
 import cv2
@@ -21,42 +22,55 @@ from utils.image import Color, draw_box, draw_landmarks, load_image
 from utils.model import load_model
 from utils.py_cpu_nms import py_cpu_nms
 
+
+class Backbone(Enum):
+    """Enumeration of supported backbone network types."""
+
+    MOBILE_0_25 = "mobile_0_25"
+    RESNET_50 = "resnet_50"
+
+
+NET_TO_CONFIG = {
+    Backbone.MOBILE_0_25: CONFIG_MOBILE_NET,
+    Backbone.RESNET_50: CONFIG_RESNET_50,
+}
+NET_TO_WEIGHTS = {
+    Backbone.MOBILE_0_25: "mobilenet0.25_Final.pth",
+    Backbone.RESNET_50: "Resnet50_Final.pth",
+}
+assert set(NET_TO_CONFIG.keys()) == set(NET_TO_WEIGHTS.keys())
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
 
     # TODO: support downloading weights from URL
-    parser.add_argument(
-        "-m",
-        "--trained_model",
-        default="./weights/retinaface/Resnet50_Final.pth",
-        type=str,
-        help="Trained state_dict file path to open",
-    )
+    parser.add_argument("-m", "--checkpoint", default="", type=str, help="Checkpoint path")
     # TODO: support downloading image from URL
+    default_image = "./data/tpab.png"
     parser.add_argument(
-        "-i", "--image_path", default="./data/tpab.png", type=str, help="Input image path"
+        "-i", "--image_path", default=default_image, type=str, help="Input image path"
     )
-    parser.add_argument(
-        "--network", default="resnet50", help="Backbone network mobile0.25 or resnet50"
-    )
+    parser.add_argument("--network", default="resnet_50", type=Backbone, help="Network backbone")
     parser.add_argument("--cpu", action="store_false", default=True, help="Use cpu inference")
     parser.add_argument(
-        "--confidence_threshold", default=0.02, type=float, help="confidence_threshold"
+        "--confidence_threshold", default=0.02, type=float, help="Confidence threshold"
     )
-    parser.add_argument("--top_k", default=5000, type=int, help="Kept top K boxes before NMS")
-    parser.add_argument("--nms_threshold", default=0.4, type=float, help="nms_threshold")
-    parser.add_argument("--keep_top_k", default=750, type=int, help="Kept top K boxes after NMS")
-    parser.add_argument("--view_threshold", default=0.6, type=float, help="visualization threshold")
+    parser.add_argument("--top_k", default=5000, type=int, help="Keep top K boxes before NMS")
+    parser.add_argument("--nms_threshold", default=0.4, type=float, help="NMS threshold")
+    parser.add_argument("--nms_top_k", default=750, type=int, help="Keep top K boxes after NMS")
+    parser.add_argument("--view_threshold", default=0.6, type=float, help="Visualization threshold")
     args = parser.parse_args()
 
     torch.set_grad_enabled(False)
-    network_to_config = {"mobile0.25": CONFIG_MOBILE_NET, "resnet50": CONFIG_RESNET_50}
-    cfg = network_to_config.get(args.network, None)
+    cfg = NET_TO_CONFIG.get(Backbone(args.network), None)
 
     # net and model
     net = RetinaFace(cfg=cfg, phase="test")
     device = torch.device("cpu" if args.cpu else "cuda")
-    net = load_model(net, args.trained_model, device)
+    default_checkpoint = Path.cwd() / "weights/retinaface" / NET_TO_WEIGHTS.get(args.network, None)
+    checkpoint = args.checkpoint or default_checkpoint
+    net = load_model(net, checkpoint, device)
     net.eval()
     cudnn.benchmark = True
     net = net.to(device)
@@ -90,7 +104,7 @@ if __name__ == "__main__":
 
     # do NMS and keep top-K after NMS
     keep = py_cpu_nms(boxes, scores, args.nms_threshold)
-    keep = keep[: args.keep_top_k]
+    keep = keep[: args.nms_top_k]
     boxes = boxes[keep]
     scores = scores[keep]
     landmarks = landmarks[keep]
