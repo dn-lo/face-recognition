@@ -7,6 +7,7 @@ a visualization of detected faces.
 """
 
 import argparse
+import math
 import time
 from pathlib import Path
 
@@ -23,55 +24,49 @@ from utils.load_model import load_model
 from utils.py_cpu_nms import py_cpu_nms
 
 
-# TODO: crop and downsample it's not needed, you should just ensure the image is not too large to
-# exceed memory limits and keep aspect ratio.
 def load_image(
     image_path: str,
-    target_size: tuple[int, int] = (1024, 624),
     bgr_mean: tuple[int, int, int] | None = None,
-) -> tuple[torch.Tensor, np.ndarray]:
-    """Load and preprocess an image with symmetric cropping and downsampling.
+    max_size_mp: int | None = None,
+) -> tuple[torch.Tensor, np.ndarray, float]:
+    """Load and preprocess an image, resizing if required to fit within a max size limit.
 
     Args:
         image_path: Path to the input image.
-        target_size: Desired output size as (width, height). Defaults to (1024, 624).
         bgr_mean: Mean values for BGR channels for normalization. Defaults to None.
+        max_size_mp: Optional max allowed image size in megapixel. If exceeded, the image
+            will be resized to fit within the limit while maintaining aspect ratio.
 
     Returns:
-        torch.Tensor: Preprocessed image tensor, with shape (1, C, H, W).
-        np.ndarray: Original image read from the path.
+        tensor: Preprocessed image tensor of shape (1, 3, H_resized, W_resized).
+        img_raw: original BGR image as read by OpenCV, of shape (H, W, 3).
+        resize_scale: float factor to map coordinates from the preprocessed image back to
+            the original image (original_dim / preprocessed_dim). 1.0 if no resizing occurred.
     """
     img_raw = cv2.imread(image_path, cv2.IMREAD_COLOR)
+    if img_raw is None:
+        msg = f"Could not read image: {image_path}"
+        raise FileNotFoundError(msg)
 
-    # Get original and target dimensions
     orig_h, orig_w = img_raw.shape[:2]
-    target_w, target_h = target_size
 
-    # Calculate aspect ratios
-    orig_aspect = orig_w / orig_h
-    target_aspect = target_w / target_h
-
-    # Determine crop dimensions to match target aspect ratio
-    if orig_aspect > target_aspect:
-        # Image is too wide, crop width
-        new_w = int(orig_h * target_aspect)
-        new_h = orig_h
-        crop_x = (orig_w - new_w) // 2
-        crop_y = 0
+    # Input tensor size in megapixels
+    input_size_mp = orig_h * orig_w / 1e6
+    print(f"Original image size: ({orig_w}x{orig_h}), {input_size_mp:.2f} megapixels.")
+    if max_size_mp and input_size_mp > max_size_mp:
+        # compute downscale factor (power of two) to reduce aliasing artifacts
+        downscale = math.sqrt(max_size_mp / input_size_mp)
+        downscale = 2 ** math.ceil(-math.log2(downscale))
+        assert orig_h % downscale == 0, f"orig_h {orig_h} not divisible by downscale {downscale}"
+        assert orig_w % downscale == 0, f"orig_w {orig_w} not divisible by downscale {downscale}"
+        new_w = max(1, orig_w // downscale)
+        new_h = max(1, orig_h // downscale)
+        print(f"Resizing to ({new_w}x{new_h}) ({downscale=}) to fit {max_size_mp} megapixels.")
+        img_resized = cv2.resize(img_raw, (new_w, new_h), interpolation=cv2.INTER_AREA)
     else:
-        # Image is too tall, crop height
-        new_w = orig_w
-        new_h = int(orig_w / target_aspect)
-        crop_x = 0
-        crop_y = (orig_h - new_h) // 2
+        img_resized = img_raw
+        downscale = 1.0
 
-    # Symmetric crop
-    img_cropped = img_raw[crop_y : crop_y + new_h, crop_x : crop_x + new_w]
-
-    # Downsample using INTER_AREA (best for downsampling, avoids aliasing)
-    img_resized = cv2.resize(img_cropped, target_size, interpolation=cv2.INTER_AREA)
-
-    # Convert to float and normalize
     img = np.float32(img_resized)
     if bgr_mean is not None:
         img -= bgr_mean
@@ -79,7 +74,7 @@ def load_image(
     img = img.transpose(2, 0, 1)
     img = torch.from_numpy(img).unsqueeze(0)
 
-    return img, img_resized
+    return img, img_raw, downscale
 
 
 if __name__ == "__main__":
@@ -117,17 +112,14 @@ if __name__ == "__main__":
     device = torch.device("cpu" if args.cpu else "cuda")
     net = load_model(net, args.trained_model, device)
     net.eval()
-    print(net)
     cudnn.benchmark = True
     net = net.to(device)
 
-    resize = 1
-
     # testing begin
     for _ in range(1):
-        image_path = "/workspaces/face-recognition/data/PXL_20251018_113408119.jpg"
+        image_path = "/workspaces/face-recognition/data/tpab.png"
         bgr_mean_imagenet = (104, 117, 123)  # Mean BGR values in ImageNet, used for training
-        img, img_raw = load_image(image_path, bgr_mean=bgr_mean_imagenet)
+        img, img_raw, downscale = load_image(image_path, bgr_mean=bgr_mean_imagenet, max_size_mp=4)
         img = img.to(device)
 
         height_width = img.shape[-2:]
@@ -141,7 +133,7 @@ if __name__ == "__main__":
         prior_data = priors.data
 
         boxes = decode(locations.data.squeeze(0), prior_data, cfg.variance, height_width)
-        boxes = boxes / resize
+        boxes = boxes * downscale
         boxes = boxes.cpu().numpy()
 
         scores = confidences.squeeze(0).data.cpu().numpy()[:, 1].astype(np.float32, copy=False)
@@ -149,7 +141,7 @@ if __name__ == "__main__":
         landmarks = decode_landmarks(
             landmarks.data.squeeze(0), prior_data, cfg.variance, height_width
         )
-        landmarks = landmarks / resize
+        landmarks = landmarks * downscale
         landmarks = landmarks.cpu().numpy().astype(np.float32, copy=False)
 
         # ignore low scores
