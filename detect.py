@@ -49,16 +49,20 @@ def load_image(
         raise FileNotFoundError(msg)
 
     orig_h, orig_w = img_raw.shape[:2]
-
-    # Input tensor size in megapixels
     input_size_mp = orig_h * orig_w / 1e6
     print(f"Original image size: ({orig_w}x{orig_h}), {input_size_mp:.2f} megapixels.")
+
     if max_size_mp and input_size_mp > max_size_mp:
         # compute downscale factor (power of two) to reduce aliasing artifacts
-        downscale = math.sqrt(max_size_mp / input_size_mp)
-        downscale = 2 ** math.ceil(-math.log2(downscale))
-        assert orig_h % downscale == 0, f"orig_h {orig_h} not divisible by downscale {downscale}"
-        assert orig_w % downscale == 0, f"orig_w {orig_w} not divisible by downscale {downscale}"
+        downscale = math.sqrt(input_size_mp / max_size_mp)
+        downscale = 2 ** math.ceil(math.log2(downscale))
+
+        if orig_h % downscale != 0 or orig_w % downscale != 0:
+            orig_h -= orig_h % downscale
+            orig_w -= orig_w % downscale
+            img_raw = img_raw[:orig_h, :orig_w]
+            print(f"Cropping image to ({orig_w}x{orig_h}) to be divisible by {downscale=}.")
+
         new_w = max(1, orig_w // downscale)
         new_h = max(1, orig_h // downscale)
         print(f"Resizing to ({new_w}x{new_h}) ({downscale=}) to fit {max_size_mp} megapixels.")
@@ -115,75 +119,71 @@ if __name__ == "__main__":
     cudnn.benchmark = True
     net = net.to(device)
 
-    # testing begin
-    for _ in range(1):
-        image_path = "/workspaces/face-recognition/data/tpab.png"
-        bgr_mean_imagenet = (104, 117, 123)  # Mean BGR values in ImageNet, used for training
-        img, img_raw, downscale = load_image(image_path, bgr_mean=bgr_mean_imagenet, max_size_mp=4)
-        img = img.to(device)
+    image_path = "/workspaces/face-recognition/data/tpab.png"
+    bgr_mean_imagenet = (104, 117, 123)  # Mean BGR values in ImageNet, used for training
+    img, img_raw, downscale = load_image(image_path, bgr_mean=bgr_mean_imagenet, max_size_mp=4)
+    img = img.to(device)
 
-        height_width = img.shape[-2:]
-        tic = time.time()
-        locations, confidences, landmarks = net(img)  # forward pass
-        print(f"net forward time: {time.time() - tic:.4f}")
+    height_width = img.shape[-2:]
+    tic = time.time()
+    locations, confidences, landmarks = net(img)  # forward pass
+    print(f"net forward time: {time.time() - tic:.4f} s")
 
-        prior_box = PriorBox(cfg, image_size=height_width)
-        priors = prior_box.forward()
-        priors = priors.to(device)
-        prior_data = priors.data
+    prior_box = PriorBox(cfg, image_size=height_width)
+    priors = prior_box.forward()
+    priors = priors.to(device)
+    prior_data = priors.data
 
-        boxes = decode(locations.data.squeeze(0), prior_data, cfg.variance, height_width)
-        boxes = boxes * downscale
-        boxes = boxes.cpu().numpy()
+    boxes = decode(locations.data.squeeze(0), prior_data, cfg.variance, height_width)
+    boxes = boxes * downscale
+    boxes = boxes.cpu().numpy()
 
-        scores = confidences.squeeze(0).data.cpu().numpy()[:, 1].astype(np.float32, copy=False)
+    scores = confidences.squeeze(0).data.cpu().numpy()[:, 1].astype(np.float32, copy=False)
 
-        landmarks = decode_landmarks(
-            landmarks.data.squeeze(0), prior_data, cfg.variance, height_width
-        )
-        landmarks = landmarks * downscale
-        landmarks = landmarks.cpu().numpy().astype(np.float32, copy=False)
+    landmarks = decode_landmarks(landmarks.data.squeeze(0), prior_data, cfg.variance, height_width)
+    landmarks = landmarks * downscale
+    landmarks = landmarks.cpu().numpy().astype(np.float32, copy=False)
 
-        # ignore low scores
-        inds = np.where(scores > args.confidence_threshold)[0]
-        boxes = boxes[inds]
-        landmarks = landmarks[inds]
-        scores = scores[inds]
+    # ignore low scores
+    inds = np.where(scores > args.confidence_threshold)[0]
+    boxes = boxes[inds]
+    landmarks = landmarks[inds]
+    scores = scores[inds]
 
-        # keep top-K before NMS
-        order = scores.argsort()[::-1][: args.top_k]
-        boxes = boxes[order]
-        landmarks = landmarks[order]
-        scores = scores[order]
+    # keep top-K before NMS
+    order = scores.argsort()[::-1][: args.top_k]
+    boxes = boxes[order]
+    landmarks = landmarks[order]
+    scores = scores[order]
 
-        # do NMS and keep top-K after NMS
-        keep = py_cpu_nms(boxes, scores, args.nms_threshold)
-        keep = keep[: args.keep_top_k]
-        boxes = boxes[keep]
-        scores = scores[keep]
-        landmarks = landmarks[keep]
+    # do NMS and keep top-K after NMS
+    keep = py_cpu_nms(boxes, scores, args.nms_threshold)
+    keep = keep[: args.keep_top_k]
+    boxes = boxes[keep]
+    scores = scores[keep]
+    landmarks = landmarks[keep]
 
-        # show image with detections
-        if args.save_image:
-            for box, score, landmark in zip(boxes, scores, landmarks, strict=False):
-                if score < args.view_threshold:
-                    continue
+    # show image with detections
+    if args.save_image:
+        for box, score, landmark in zip(boxes, scores, landmarks, strict=False):
+            if score < args.view_threshold:
+                continue
 
-                text = f"{score:.4f}"
-                bbox = box.astype(int).tolist()
-                lmark = landmark.astype(int).tolist()
+            text = f"{score:.4f}"
+            bbox = box.astype(int).tolist()
+            lmark = landmark.astype(int).tolist()
 
-                cv2.rectangle(img_raw, (bbox[0], bbox[1]), (bbox[2], bbox[3]), (0, 0, 255), 2)
-                cx = bbox[0]
-                cy = bbox[1] + 12
-                cv2.putText(img_raw, text, (cx, cy), cv2.FONT_HERSHEY_DUPLEX, 0.5, (255, 255, 255))
+            cv2.rectangle(img_raw, (bbox[0], bbox[1]), (bbox[2], bbox[3]), (0, 0, 255), 2)
+            cx = bbox[0]
+            cy = bbox[1] + 12
+            cv2.putText(img_raw, text, (cx, cy), cv2.FONT_HERSHEY_DUPLEX, 0.5, (255, 255, 255))
 
-                # landmarks
-                cv2.circle(img_raw, (lmark[0], lmark[1]), 1, (0, 0, 255), 4)
-                cv2.circle(img_raw, (lmark[2], lmark[3]), 1, (0, 255, 255), 4)
-                cv2.circle(img_raw, (lmark[4], lmark[5]), 1, (255, 0, 255), 4)
-                cv2.circle(img_raw, (lmark[6], lmark[7]), 1, (0, 255, 0), 4)
-                cv2.circle(img_raw, (lmark[8], lmark[9]), 1, (255, 0, 0), 4)
+            # landmarks
+            cv2.circle(img_raw, (lmark[0], lmark[1]), 1, (0, 0, 255), 4)
+            cv2.circle(img_raw, (lmark[2], lmark[3]), 1, (0, 255, 255), 4)
+            cv2.circle(img_raw, (lmark[4], lmark[5]), 1, (255, 0, 255), 4)
+            cv2.circle(img_raw, (lmark[6], lmark[7]), 1, (0, 255, 0), 4)
+            cv2.circle(img_raw, (lmark[8], lmark[9]), 1, (255, 0, 0), 4)
 
-            name = Path(image_path).name
-            cv2.imwrite(name, img_raw)
+        name = Path(image_path).name
+        cv2.imwrite(name, img_raw)
