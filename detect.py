@@ -34,6 +34,7 @@ NET_TO_CONFIG = {
     Backbone.MOBILE_0_25: CONFIG_MOBILE_NET,
     Backbone.RESNET_50: CONFIG_RESNET_50,
 }
+# Checkpoints downloaded from: https://drive.google.com/drive/folders/1oZRSG0ZegbVkVwUd8wUIQx8W7yfZ_ki1
 NET_TO_WEIGHTS = {
     Backbone.MOBILE_0_25: "mobilenet0.25_Final.pth",
     Backbone.RESNET_50: "Resnet50_Final.pth",
@@ -43,13 +44,10 @@ assert set(NET_TO_CONFIG.keys()) == set(NET_TO_WEIGHTS.keys())
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-
-    # TODO: support downloading weights from URL
     parser.add_argument("-m", "--checkpoint", default="", type=str, help="Checkpoint path")
-    # TODO: support downloading image from URL
-    default_image = "./data/tpab.png"
+    default_image = "https://wallpapercave.com/wp/wp6552551.jpg"  # To Pimp a Butterfly album cover
     parser.add_argument(
-        "-i", "--image_path", default=default_image, type=str, help="Input image path"
+        "-i", "--image_path", default=default_image, type=str, help="Input image path or URL"
     )
     parser.add_argument("--network", default="resnet_50", type=Backbone, help="Network backbone")
     parser.add_argument("--cpu", action="store_false", default=True, help="Use cpu inference")
@@ -78,8 +76,8 @@ if __name__ == "__main__":
     bgr_mean_imagenet = (104, 117, 123)  # Mean BGR values in ImageNet, used for training
     img, img_raw, downscale = load_image(args.image_path, bgr_mean=bgr_mean_imagenet, max_size_mp=4)
     img = img.to(device)
-
     image_size = img.shape[-2:]
+
     tic = time.time()
     locations, confidences, landmarks = net(img)  # forward pass
     print(f"net forward time: {time.time() - tic:.4f} s")
