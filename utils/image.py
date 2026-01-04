@@ -2,6 +2,7 @@
 
 import math
 from enum import Enum
+from urllib.request import urlopen
 
 import cv2
 import numpy as np
@@ -16,7 +17,7 @@ def load_image(
     """Load and preprocess an image, resizing if required to fit within a max size limit.
 
     Args:
-        image_path: Path to the input image.
+        image_path: Path or URL pointing to input image.
         bgr_mean: Mean values for BGR channels for normalization. Defaults to None.
         max_size_mp: Optional max allowed image size in megapixel. If exceeded, the image
             will be resized to fit within the limit while maintaining aspect ratio.
@@ -27,9 +28,21 @@ def load_image(
         resize_scale: float factor to map coordinates from the preprocessed image back to
             the original image (original_dim / preprocessed_dim). 1.0 if no resizing occurred.
     """
-    img_raw = cv2.imread(image_path, cv2.IMREAD_COLOR)
+    # URL
+    if image_path.startswith(("http://", "https://")):
+        try:
+            with urlopen(image_path) as response:  # noqa: S310
+                image_array = np.asarray(bytearray(response.read()), dtype=np.uint8)
+            img_raw = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+        except Exception as e:
+            msg = f"Could not download image from URL: {image_path}. Error: {e}"
+            raise RuntimeError(msg) from e
+    # Local file
+    else:
+        img_raw = cv2.imread(image_path, cv2.IMREAD_COLOR)
+
     if img_raw is None:
-        msg = f"Could not read image: {image_path}"
+        msg = f"Could not decode image from {image_path}"
         raise FileNotFoundError(msg)
 
     orig_h, orig_w = img_raw.shape[:2]
