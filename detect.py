@@ -34,11 +34,12 @@ NET_TO_CONFIG = {
     Backbone.MOBILE_0_25: CONFIG_MOBILE_NET,
     Backbone.RESNET_50: CONFIG_RESNET_50,
 }
-# Checkpoints downloaded from: https://drive.google.com/drive/folders/1oZRSG0ZegbVkVwUd8wUIQx8W7yfZ_ki1
+# MIT-licensed weights downloaded from: https://drive.google.com/drive/folders/1oZRSG0ZegbVkVwUd8wUIQx8W7yfZ_ki1
 NET_TO_WEIGHTS = {
     Backbone.MOBILE_0_25: "mobilenet0.25_Final.pth",
     Backbone.RESNET_50: "Resnet50_Final.pth",
 }
+WEIGHT_SUBFOLDER="weights/retinaface"
 assert set(NET_TO_CONFIG.keys()) == set(NET_TO_WEIGHTS.keys())
 
 
@@ -66,7 +67,7 @@ if __name__ == "__main__":
     # net and model
     net = RetinaFace(cfg=cfg, phase="test")
     device = torch.device("cpu" if args.cpu else "cuda")
-    default_checkpoint = Path.cwd() / "weights/retinaface" / NET_TO_WEIGHTS.get(args.network, None)
+    default_checkpoint = Path.cwd() / WEIGHT_SUBFOLDER / NET_TO_WEIGHTS.get(args.network, None)
     checkpoint = args.checkpoint or default_checkpoint
     net = load_model(net, checkpoint, device)
     net.eval()
